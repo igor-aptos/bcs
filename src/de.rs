@@ -554,9 +554,9 @@ impl<'de, 'a> de::MapAccess<'de> for MapDeserializer<'a, 'de> {
                     .saturating_sub(self.de.input.len());
                 let key_bytes = &previous_input_slice[..key_len];
                 if let Some(previous_key_bytes) = self.previous_key_bytes {
-                    if previous_key_bytes >= key_bytes {
-                        return Err(Error::NonCanonicalMap);
-                    }
+                    // if previous_key_bytes >= key_bytes {
+                    //     return Err(Error::NonCanonicalMap);
+                    // }
                 }
                 self.remaining = remaining;
                 self.previous_key_bytes = Some(key_bytes);

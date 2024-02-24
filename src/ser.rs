@@ -203,7 +203,7 @@ where
     type SerializeTuple = Self;
     type SerializeTupleStruct = Self;
     type SerializeTupleVariant = Self;
-    type SerializeMap = MapSerializer<'a, W>;
+    type SerializeMap = DirectMapSerializer<'a, W>;
     type SerializeStruct = Self;
     type SerializeStructVariant = Self;
 
@@ -375,8 +375,14 @@ where
         Ok(self)
     }
 
-    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
-        Ok(MapSerializer::new(self))
+    fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
+        if let Some(len) = len {
+            DirectMapSerializer::new(self, len)
+        } else {
+            Err(Error::MissingLen)
+        }
+
+        // Ok(MapSerializer::new(self))
     }
 
     fn serialize_struct(
@@ -481,6 +487,47 @@ where
         Ok(())
     }
 }
+
+struct DirectMapSerializer<'a, W: ?Sized> {
+    serializer: Serializer<'a, W>,
+}
+
+impl<'a, W: ?Sized> DirectMapSerializer<'a, W> {
+    fn new(mut serializer: Serializer<'a, W>, len: usize) -> Result<Self>
+    where W: std::io::Write {
+        serializer.output_seq_len(len)?;
+        Ok(DirectMapSerializer {
+            serializer,
+        })
+    }
+}
+
+impl<'a, W> ser::SerializeMap for DirectMapSerializer<'a, W>
+where
+    W: ?Sized + std::io::Write,
+{
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_key<T>(&mut self, key: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        key.serialize(Serializer::new(self.serializer.output, self.serializer.max_remaining_depth))
+    }
+
+    fn serialize_value<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        value.serialize(Serializer::new(self.serializer.output, self.serializer.max_remaining_depth))
+    }
+
+    fn end(self) -> Result<()> {
+        Ok(())
+    }
+}
+
 
 #[doc(hidden)]
 struct MapSerializer<'a, W: ?Sized> {
